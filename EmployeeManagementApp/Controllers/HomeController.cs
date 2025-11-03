@@ -1,31 +1,21 @@
-﻿using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using EmployeeManagementApp.Models;
+using System.Collections.Generic;
 
-namespace EmployeeManagementApp.Controllers;
-
-public class HomeController : Controller
+namespace EmployeeManagementApp.Controllers
 {
-    private readonly ILogger<HomeController> _logger;
-
-    public HomeController(ILogger<HomeController> logger)
+    public class HomeController : Controller
     {
-        _logger = logger;
-    }
+        public IActionResult Index()
+        {
+            var employees = new List<Employee>
+            {
+                new Employee { Id = 1, Name = "John Doe", Department = "HR", Salary = 50000 },
+                new Employee { Id = 2, Name = "Jane Smith", Department = "Finance", Salary = 60000 },
+                new Employee { Id = 3, Name = "Sam Johnson", Department = "IT", Salary = 70000 }
+            };
 
-    public IActionResult Index()
-    {
-        return View();
-    }
-
-    public IActionResult Privacy()
-    {
-        return View();
-    }
-
-    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-    public IActionResult Error()
-    {
-        return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+            return View(employees);
+        }
     }
 }
