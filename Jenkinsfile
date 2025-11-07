@@ -11,7 +11,7 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/<your-username>/EmployeeManagementApp.git'
+                git branch: 'main', url: 'https://github.com/SaloniPawar-59/EmployeeManagementApp.git'
             }
         }
 
