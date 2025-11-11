@@ -1,83 +1,75 @@
 pipeline {
-    agent any
+    agent { label 'dotnet-agent' }  // Runs on Jenkins Agent
 
     environment {
         AWS_REGION = "ap-south-1"
-        S3_BUCKET = "elasticbeanstalk-ap-south-1-304686171763"
+        S3_BUCKET = "employee-management-artifacts-ap-south-1"   // change this to your bucket
         APP_NAME = "EmployeeManagementApp"
-        EB_ENV = "EmployeeManagementApp-dev"
-    }
-
-    options {
-        timeout(time: 15, unit: 'MINUTES')
-        disableConcurrentBuilds()
-        buildDiscarder(logRotator(numToKeepStr: '5'))
+        ENV_NAME = "EmployeeManagementApp-dev"
+        DOTNET_ROOT = "/usr/share/dotnet"
     }
 
     stages {
-        stage('Verify .NET SDK Version') {
-            steps {
-                sh 'dotnet --version'
-            }
-        }
-
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/SaloniPawar-59/EmployeeManagementApp.git'
             }
         }
 
-        stage('Clean, Restore & Build') {
+        stage('Restore Dependencies') {
+            steps {
+                sh 'dotnet restore EmployeeManagementApp/EmployeeManagementApp.csproj'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'dotnet build EmployeeManagementApp/EmployeeManagementApp.csproj -c Release'
+            }
+        }
+
+        stage('Publish') {
+            steps {
+                sh 'dotnet publish EmployeeManagementApp/EmployeeManagementApp.csproj -c Release -o published/'
+            }
+        }
+
+        stage('Package for Elastic Beanstalk') {
             steps {
                 sh '''
-                echo "🧹 Cleaning project..."
-                dotnet clean EmployeeManagementApp/EmployeeManagementApp.csproj
-                echo "📦 Restoring dependencies..."
-                dotnet restore EmployeeManagementApp/EmployeeManagementApp.csproj --verbosity minimal
-                echo "⚙️ Building project..."
-                dotnet build EmployeeManagementApp/EmployeeManagementApp.csproj -c Release --no-restore --verbosity minimal
+                cd published
+                zip -r ../app.zip .
+                cd ..
+                aws s3 cp app.zip s3://$S3_BUCKET/app-$(date +%Y%m%d%H%M%S).zip --region $AWS_REGION
                 '''
             }
         }
 
-        stage('Publish Artifact') {
+        stage('Deploy to Elastic Beanstalk') {
             steps {
-                sh 'dotnet publish EmployeeManagementApp/EmployeeManagementApp.csproj -c Release -o output'
-            }
-        }
-
-        stage('Zip Artifact') {
-            steps {
-                sh 'cd output && zip -r ../EmployeeManagementApp.zip .'
-            }
-        }
-
-        stage('Upload & Deploy') {
-            steps {
-                withAWS(credentials: 'aws-credentials', region: "${AWS_REGION}") {
-                    sh '''
-                    aws s3 cp EmployeeManagementApp.zip s3://$S3_BUCKET/
-
-                    aws elasticbeanstalk create-application-version \
-                        --application-name $APP_NAME \
-                        --version-label "build-$BUILD_ID" \
-                        --source-bundle S3Bucket=$S3_BUCKET,S3Key=EmployeeManagementApp.zip
-
-                    aws elasticbeanstalk update-environment \
-                        --environment-name $EB_ENV \
-                        --version-label "build-$BUILD_ID"
-                    '''
-                }
+                sh '''
+                VERSION_LABEL="app-$(date +%Y%m%d%H%M%S)"
+                aws elasticbeanstalk create-application-version \
+                    --application-name $APP_NAME \
+                    --version-label $VERSION_LABEL \
+                    --source-bundle S3Bucket=$S3_BUCKET,S3Key=app.zip \
+                    --region $AWS_REGION
+                aws elasticbeanstalk update-environment \
+                    --application-name $APP_NAME \
+                    --environment-name $ENV_NAME \
+                    --version-label $VERSION_LABEL \
+                    --region $AWS_REGION
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "✅ Deployment Successful!"
+            echo "✅ Deployment successful!"
         }
         failure {
-            echo "❌ Deployment Failed!"
+            echo "❌ Deployment failed!"
         }
     }
 }
