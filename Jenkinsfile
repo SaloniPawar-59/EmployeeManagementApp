@@ -1,12 +1,13 @@
 pipeline {
-    agent { label 'dotnet-agent' }  // Runs on Jenkins Agent
+    agent any    // <--- this runs the whole pipeline on the master node
 
     environment {
         AWS_REGION = "ap-south-1"
-        S3_BUCKET = "employee-management-artifacts-ap-south-1"   // change this to your bucket
+        S3_BUCKET = "employee-management-artifacts-ap-south-1"
         APP_NAME = "EmployeeManagementApp"
         ENV_NAME = "EmployeeManagementApp-dev"
         DOTNET_ROOT = "/usr/share/dotnet"
+        PATH = "/usr/share/dotnet:$PATH"   // ensure dotnet is in PATH
     }
 
     stages {
@@ -49,11 +50,13 @@ pipeline {
             steps {
                 sh '''
                 VERSION_LABEL="app-$(date +%Y%m%d%H%M%S)"
+                
                 aws elasticbeanstalk create-application-version \
                     --application-name $APP_NAME \
                     --version-label $VERSION_LABEL \
                     --source-bundle S3Bucket=$S3_BUCKET,S3Key=app.zip \
                     --region $AWS_REGION
+
                 aws elasticbeanstalk update-environment \
                     --application-name $APP_NAME \
                     --environment-name $ENV_NAME \
